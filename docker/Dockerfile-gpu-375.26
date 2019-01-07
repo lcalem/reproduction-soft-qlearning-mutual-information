@@ -1,0 +1,72 @@
+# tensorflow 1.4.0
+# cudnn 6.0
+# cuda 8.0.61
+# ubuntu 16.04
+# nvidia drivers 375.26
+
+# 1. cuda 8.0.61
+FROM ubuntu:16.04
+
+RUN apt-get update && apt-get install -y \
+  build-essential wget && \
+  cd /tmp && \
+  wget http://files.heuritech.com/raw_files/NVIDIA-Linux-x86_64-375.26.run && \
+  touch /usr/bin/insmod /usr/bin/lsmod /usr/bin/rmmod /usr/bin/modprobe /usr/bin/insmod /usr/bin/depmod && \
+  chmod +x /usr/bin/insmod /usr/bin/lsmod /usr/bin/rmmod /usr/bin/modprobe /usr/bin/insmod /usr/bin/depmod && \
+  sh /tmp/NVIDIA-Linux-x86_64-375.26.run -a -s --no-kernel-module -N -b --no-nvidia-modprobe && \
+  wget http://files.heuritech.com/raw_files/cuda_8.0.61_375.26_linux.run && \
+  sh /tmp/cuda_8.0.61_375.26_linux.run  -extract=`pwd` && \
+  sh cuda-linux64-rel-8.0.61-21551265.run -noprompt && \
+  rm -rf /usr/bin/insmod /usr/bin/lsmod /usr/bin/rmmod /usr/bin/modprobe /usr/bin/insmod /usr/bin/depmod && \
+  apt-get remove --autoremove -y build-essential wget && \
+  apt-get clean && \
+  rm -rf /var/lib/apt/lists/* && \
+  rm -rf /tmp/*
+
+ENV PATH=/usr/local/cuda/bin:$PATH \
+    LD_LIBRARY_PATH=/usr/local/cuda/lib64:$LD_LIBRARY_PATH
+
+# 2. cudnn 6
+ENV CUDNN_VERSION 6
+LABEL com.nvidia.cudnn.version="6"
+
+RUN apt-get update && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    CUDNN_DOWNLOAD_SUM=9b09110af48c9a4d7b6344eb4b3e344daa84987ed6177d5c44319732f3bb7f9c && \
+    curl -fsSL http://developer.download.nvidia.com/compute/redist/cudnn/v6.0/cudnn-8.0-linux-x64-v6.0.tgz -O && \
+    echo "$CUDNN_DOWNLOAD_SUM cudnn-8.0-linux-x64-v6.0.tgz" | sha256sum -c --strict - && \
+    tar -xzf cudnn-8.0-linux-x64-v6.0.tgz -C /usr/local && \
+    rm -rf /var/lib/apt/lists/* /tmp/* && \
+    rm cudnn-8.0-linux-x64-v6.0.tgz && \
+    ldconfig
+
+# 3. tensorflow 1.4 + python
+RUN apt-get -y update && \
+    apt-get -y install python3-pip python3-dev && \
+    pip3 install --upgrade numpy==1.13.3 && \
+    pip3 install --upgrade tensorflow-gpu==1.4.0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/*
+
+# 4. other deps
+ADD docker/debian-requirements.txt debian-requirements.txt
+RUN DEBIAN_FRONTEND=noninteractive apt-get update --fix-missing && \
+   DEBIAN_PACKAGES=$(egrep -v "^\s*(#|$)" debian-requirements.txt) && \
+   apt-get install -y --force-yes $DEBIAN_PACKAGES && \
+   apt-get clean && \
+   rm -rf /var/lib/apt/lists/* && \
+   rm debian-requirements.txt
+
+ADD docker/requirements-gpu.txt requirements-gpu.txt
+RUN pip3 install -r requirements-gpu.txt && rm requirements-gpu.txt
+
+# minigrid
+RUN git clone https://github.com/maximecb/gym-minigrid.git
+RUN cd gym-minigrid && pip3 install -e .
+
+ADD baselines src
+ADD docker/docker-entrypoint.sh .
+RUN chmod +x docker-entrypoint.sh
+
+ENTRYPOINT ["./docker-entrypoint.sh"]

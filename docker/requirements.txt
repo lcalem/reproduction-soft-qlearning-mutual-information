@@ -1,0 +1,20 @@
+pytest
+frozendict
+
+jupyter==1.0.0
+jupyter-client==5.2.2
+jupyter-console==5.2.0
+jupyter-core==4.4.0
+prompt-toolkit==2.0.4
+notebook==5.4.1
+pyzmq==14.3.1
+tornado==4.5.3
+matplotlib==3.0.2
+
+# tensorflow-gpu==1.4.0
+tensorflow
+h5py
+numpy
+pandas
+gym
+git+https://github.com/maximecb/gym-minigrid

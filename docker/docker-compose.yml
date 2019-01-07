@@ -1,0 +1,11 @@
+version: '2'
+
+services:
+  grotile-gpu:
+    image: grotile_gpu:latest
+    devices:
+      - /dev/nvidia0:/dev/nvidia0
+      - /dev/nvidiactl
+      - /dev/nvidia-uvm
+    networks:
+      overlay: null
