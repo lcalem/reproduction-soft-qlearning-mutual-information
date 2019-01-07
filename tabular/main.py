@@ -29,7 +29,7 @@ PAPER_COLORS = {
 }
 
 
-def eval_snapshot(agent_class, agent_checkpoint, world_conf):
+def eval_snapshot(agent_class, agent_checkpoint, world_conf, config):
     '''
     described in the paper: "The evaluation for a single snapshot is conducted by running the policy for 
     30 episodes lasting at most 100 environment steps. The epsilon value when in evaluation mode is set to 0.05.   
@@ -105,7 +105,7 @@ def train(envs, agents, config):
                     agent.update(obs, action, reward, next_obs, done)
 
                     if (global_step + 1) % 100 == 0:
-                        eval_reward = eval_snapshot(agent_class, agent.get_checkpoint(), envconf)
+                        eval_reward = eval_snapshot(agent_class, agent.get_checkpoint(), envconf, config)
                         evals[global_step] = eval_reward
                         print('Step %s, reward eval %s' % (global_step + 1, eval_reward))
 
@@ -241,8 +241,8 @@ if __name__ == '__main__':
     config = frozendict.frozendict({
         'eps_train': 0.1,
         'eps_eval': 0.05,
-        'gamma': 0.99,
-        'rho_lr': 2e-3,
+        'gamma': 0.999,
+        'rho_lr': 1e-3,
         'beta_lr': 2e-3,   # use?
         'c': 1e-3,
         'omega': 0.8,
