@@ -145,10 +145,7 @@ def train(envs, agents, config):
     return evaluation_data, correct_info
 
 
-def plot_results(log_folder, evaluation_data):
-    '''
-    reward over time
-    '''
+def plot_results(evaluation_data, log_folder, alpha_agents=None):
     for envname, env_eval_data in evaluation_data.items():
         for agent_type, eval_data in env_eval_data.items():
             data_x = np.array(list(eval_data.keys()))
@@ -156,25 +153,22 @@ def plot_results(log_folder, evaluation_data):
             x_smooth = np.linspace(data_x.min(), data_x.max(), 200)
             f_smooth = interp1d(data_x, data_y, kind='cubic')
             df = pd.Series(data_y)
-            plt.plot(data_x, df.ewm(span=10).mean(), PAPER_COLORS[agent_type])
+            
+            alpha = 0.4 if (alpha_agents and agent_type in alpha_agents) else 1.0
+            plt.plot(data_x, df.ewm(span=10).mean(), paper_colors[agent_type], label='%s' % agent_type.replace('Agent', ''), alpha=alpha)
 
-            plt.plot(x_smooth, f_smooth(x_smooth), PAPER_COLORS[agent_type], label='%s eval RAW' % agent_type, alpha=0.4)
+            # plt.plot(x_smooth, f_smooth(x_smooth), paper_colors[agent_type], label='%s eval RAW' % agent_type, alpha=0.4)
             # plt.plot(ewma(data_x, span=1000), label='%s train EWMA' % agent_type)
 
         plt.xlabel('environment interactions')
         plt.ylabel('reward')
         plt.legend()
         plt.title(envname)
+        
+        plt.savefig(log_folder + '/results_%s.png' % envname)
 
-        plt.savefig(log_folder + '/results.png')
 
-
-def plot_correct_action(log_folder, correct_info):
-    '''
-    figure 1 last column
-    differs for the two environments
-    '''
-
+def plot_correct_action(correct_info, log_folder, alpha_agents=None):
     labels = {
         'Grid_World_3x20': {
             'title': 'Correct action while training',
@@ -189,27 +183,30 @@ def plot_correct_action(log_folder, correct_info):
     }
 
     for envname, correct_data in correct_info.items():
+        envname = envname.replace(' ', '_')
         for agent_type, correct_action in correct_data.items():
             data_x = np.arange(0, len(correct_action), 1)
             data_y = np.array(correct_action)
             df = pd.Series(correct_action)
-            plt.plot(data_x, df.ewm(span=100).mean(), PAPER_COLORS[agent_type], label=agent_type)
+            
+            alpha = 0.4 if (alpha_agents and agent_type in alpha_agents) else 1.0
+            plt.plot(data_x, df.ewm(span=1000).mean(), paper_colors[agent_type], label=agent_type.replace('Agent', ''), alpha=alpha)
 
         plt.xlabel(labels[envname]['x_label'])
         plt.ylabel(labels[envname]['y_label'])
         plt.legend()
         plt.title(labels[envname]['title'])
 
-        plt.savefig(log_folder + '/correct_action.png')
+        plt.savefig(log_folder + '/actions_%s.png' % envname)
 
 
 def plot(log_folder, evaluation_data, correct_info):
     '''
     plotting reward over time and correct action
     '''
-    plot_results(log_folder, evaluation_data)
+    plot_results(evaluation_data, log_folder)
 
-    plot_correct_action(log_folder, correct_info)
+    plot_correct_action(correct_info, log_folder)
 
 
 # python3 main.py --root_dir /home/caleml/grotile --exp_name 100k_mirl --max_steps 100000 --agents MIRLAgent
@@ -242,7 +239,7 @@ if __name__ == '__main__':
         'eps_train': 0.1,
         'eps_eval': 0.05,
         'gamma': 0.999,
-        'rho_lr': 1e-3,
+        'rho_lr': 2e-4,
         'beta_lr': 2e-3,   # use?
         'c': 1e-3,
         'omega': 0.8,
