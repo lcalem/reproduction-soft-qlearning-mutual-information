@@ -53,14 +53,6 @@ class TabularAgent:
         '''
         return []
 
-    def get_exp(self, obs, a):
-        '''
-        put here but only for SQL, SQL_m and MIRL since QL doesn't use soft exp...
-        the inner value is bounded by [-700, 700] to avoid under/overflow
-        '''
-        raw_val = self.beta * self.q_table[self.get_key(obs, a)]
-        return np.exp(min(max(-300.0, raw_val), 300))
-
     def choose_action(self, current_obs):
         raise NotImplementedError
 
@@ -93,9 +85,6 @@ class QLAgent(TabularAgent):
         else:
             q_values = np.array([self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions])
             return np.random.choice(np.flatnonzero(q_values == q_values.max()))
-
-    def get_exp(self, obs, a):
-        raise NotImplementedError
 
     def update(self, current_obs, action, reward, next_obs, done):
         '''
@@ -139,7 +128,10 @@ class SQLAgent(TabularAgent):
         if np.random.random() <= self.epsilon:
             return np.random.choice(self.possible_actions)
         else:
-            soft_q_values = np.array([self.rho[a] * self.get_exp(current_obs, a) for a in self.possible_actions])
+            # numerical stability: substract max_q but no normalization constant for SQL?
+            q_values = [self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions]
+            q_max = max(q_values)
+            soft_q_values = np.array([self.rho[a] * np.exp(self.beta * (q - q_max)) for a, q in enumerate(q_values)])
             return np.random.choice(np.flatnonzero(soft_q_values == soft_q_values.max()))
 
     def update(self, current_obs, action, reward, next_obs, done):
@@ -152,7 +144,10 @@ class SQLAgent(TabularAgent):
         self.n_table[s_a] += 1
 
         alpha_q = self.n_table[s_a] ** (-self.omega)
-        t_soft = reward + (self.gamma / self.beta) * np.log(np.sum([self.rho[a] * self.get_exp(next_obs, a) for a in self.possible_actions]))
+        q_values = [self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions]
+        q_max = max(q_values)
+        normalization = np.exp(self.beta * q_max)
+        t_soft = reward + (self.gamma / self.beta) * np.log(np.sum([self.rho[a] * np.exp(self.beta * (q - q_max)) * normalization for a, q in enumerate(q_values)]))  # this works because actions are 0, 1, 2, 3
 
         new_q = old_q + alpha_q * (t_soft - old_q)
 
@@ -192,7 +187,10 @@ class SQL_mAgent(SQLAgent):
             action = np.random.choice(self.possible_actions, p=self.get_marginal_dist())
             self.random_counter += 1
         else:
-            soft_q_values = np.array([self.rho[a] * self.get_exp(current_obs, a) for a in self.possible_actions])
+            q_values = [self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions]
+            q_max = max(q_values)
+
+            soft_q_values = np.array([self.rho[a] * np.exp(self.beta * (q - q_max)) for a, q in enumerate(q_values)])
             action = np.random.choice(np.flatnonzero(soft_q_values == soft_q_values.max()))
 
         self.action_counters[action] += 1
@@ -222,7 +220,10 @@ class MIRLAgent(TabularAgent):
         get pi(a|s), s being current_obs
         follows eq 8
         '''
-        inner = self.rho * np.array([self.get_exp(current_obs, a) for a in self.possible_actions])
+        q_values = [self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions]
+        q_max = max(q_values)
+
+        inner = self.rho * np.array([np.exp(self.beta * (q - q_max)) for q in q_values])
         z = inner.sum()
         return inner / z
 
@@ -253,7 +254,10 @@ class MIRLAgent(TabularAgent):
             self.n_table[s_a] += 1
 
             alpha_q = self.n_table[s_a] ** (-self.omega)
-            t_soft = reward + (self.gamma / self.beta) * np.log(np.sum([self.rho[a] * self.get_exp(next_obs, a) for a in self.possible_actions]))
+            q_values = [self.q_table[self.get_key(current_obs, a)] for a in self.possible_actions]
+            q_max = max(q_values)
+            normalization = np.exp(self.beta * q_max)
+            t_soft = reward + (self.gamma / self.beta) * np.log(np.sum([self.rho[a] * np.exp(self.beta * (q - q_max)) * normalization for a, q in enumerate(q_values)]))  # this works because actions are 0, 1, 2, 3
 
             # eq 12
             new_q = old_q + alpha_q * (t_soft - old_q)
